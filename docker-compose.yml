@@ -1,0 +1,27 @@
+version: '3.9'
+
+services:
+  postgres:
+    image: postgres:15
+    container_name: milk-app-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: milk_db
+      POSTGRES_USER: milk_user
+      POSTGRES_PASSWORD: milk_password
+    ports:
+      - '5433:5432'
+    volumes:
+      - milk_postgres_data:/var/lib/postgresql/data
+
+  adminer:
+    image: adminer:latest
+    container_name: milk-app-adminer
+    restart: unless-stopped
+    ports:
+      - '8080:8080'
+    depends_on:
+      - postgres
+
+volumes:
+  milk_postgres_data:
