@@ -51,6 +51,9 @@ export class AdminBuyersController {
       address: createBuyerDto.address,
       profileImage: createBuyerDto.profileImage,
       isActive: createBuyerDto.isActive,
+      openingPendingAmount: createBuyerDto.openingPendingAmount,
+      pendingAmount: createBuyerDto.pendingAmount,
+      due: createBuyerDto.due,
     });
   }
 

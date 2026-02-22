@@ -5,6 +5,7 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { getTypeOrmConfig } from './config/database.config';
 import { AuthModule } from './modules/auth/auth.module';
+import { MilkRatesModule } from './modules/milk-rates/milk-rates.module';
 import { MilkSupplyModule } from './modules/milk-supply/milk-supply.module';
 import { MilkTransactionsModule } from './modules/milk-transactions/milk-transactions.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
@@ -21,6 +22,7 @@ import { UsersModule } from './modules/users/users.module';
     }),
     AuthModule,
     UsersModule,
+    MilkRatesModule,
     MilkSupplyModule,
     MilkTransactionsModule,
     NotificationsModule,

@@ -16,6 +16,16 @@ export enum TransactionStatus {
   CANCELLED = 'cancelled',
 }
 
+export enum DeliverySession {
+  MORNING = 'morning',
+  EVENING = 'evening',
+}
+
+export enum MilkType {
+  COW = 'cow',
+  BUFFALO = 'buffalo',
+}
+
 @Entity('milk_transactions')
 @Index(['sellerId', 'buyerId', 'date'])
 export class MilkTransaction {
@@ -47,6 +57,12 @@ export class MilkTransaction {
 
   @Column({ type: 'enum', enum: TransactionStatus, default: TransactionStatus.DELIVERED })
   status!: TransactionStatus;
+
+  @Column({ type: 'enum', enum: DeliverySession, default: DeliverySession.MORNING })
+  deliverySession!: DeliverySession;
+
+  @Column({ type: 'enum', enum: MilkType, default: MilkType.COW })
+  milkType!: MilkType;
 
   @Column({ type: 'text', nullable: true })
   remarks!: string;

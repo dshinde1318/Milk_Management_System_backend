@@ -40,7 +40,7 @@ export class MilkSupplyService {
       ...createDto,
       date: new Date(createDto.date),
       unit: createDto.unit ?? 'L',
-      deliverySession: createDto.deliverySession ?? 'morning',
+      deliverySession: createDto.deliverySession ?? createDto.shift ?? 'morning',
       milkType: createDto.milkType ?? 'cow',
     });
     return this.milkSupplyRepository.save(supply);

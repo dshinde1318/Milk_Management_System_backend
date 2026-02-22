@@ -1,12 +1,13 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { MilkRatesModule } from '../milk-rates/milk-rates.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { MilkTransaction } from './entities/milk-transaction.entity';
 import { MilkTransactionsController } from './milk-transactions.controller';
 import { MilkTransactionsService } from './milk-transactions.service';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([MilkTransaction]), NotificationsModule],
+  imports: [TypeOrmModule.forFeature([MilkTransaction]), NotificationsModule, MilkRatesModule],
   controllers: [MilkTransactionsController],
   providers: [MilkTransactionsService],
   exports: [MilkTransactionsService],

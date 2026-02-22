@@ -1,5 +1,5 @@
-import { IsUUID, IsDateString, IsNumber, IsEnum, IsOptional, IsString } from 'class-validator';
-import { TransactionStatus } from '../entities/milk-transaction.entity';
+import { Min, IsUUID, IsDateString, IsNumber, IsEnum, IsOptional, IsString, ValidateIf } from 'class-validator';
+import { DeliverySession, MilkType, TransactionStatus } from '../entities/milk-transaction.entity';
 
 export class CreateMilkTransactionDto {
   @IsUUID()
@@ -8,8 +8,13 @@ export class CreateMilkTransactionDto {
   @IsDateString()
   date!: string;
 
+  @ValidateIf(
+    (dto: CreateMilkTransactionDto) =>
+      (dto.status ?? TransactionStatus.DELIVERED) === TransactionStatus.DELIVERED,
+  )
   @IsNumber()
-  quantity!: number;
+  @Min(0.01)
+  quantity?: number;
 
   @IsString()
   @IsOptional()
@@ -18,6 +23,19 @@ export class CreateMilkTransactionDto {
   @IsEnum(TransactionStatus)
   @IsOptional()
   status?: TransactionStatus;
+
+  @IsEnum(DeliverySession)
+  @IsOptional()
+  deliverySession?: DeliverySession;
+
+  // Backward-compatible alias accepted from older/mobile payloads.
+  @IsEnum(DeliverySession)
+  @IsOptional()
+  shift?: DeliverySession;
+
+  @IsEnum(MilkType)
+  @IsOptional()
+  milkType?: MilkType;
 
   @IsString()
   @IsOptional()
@@ -36,6 +54,18 @@ export class UpdateMilkTransactionDto {
   @IsEnum(TransactionStatus)
   @IsOptional()
   status?: TransactionStatus;
+
+  @IsEnum(DeliverySession)
+  @IsOptional()
+  deliverySession?: DeliverySession;
+
+  @IsEnum(DeliverySession)
+  @IsOptional()
+  shift?: DeliverySession;
+
+  @IsEnum(MilkType)
+  @IsOptional()
+  milkType?: MilkType;
 
   @IsString()
   @IsOptional()

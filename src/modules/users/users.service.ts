@@ -5,12 +5,13 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import * as bcrypt from 'bcrypt';
-import { FindOptionsWhere, Repository } from 'typeorm';
+import { FindOptionsWhere, ILike, Repository } from 'typeorm';
 import { CreateUserDto, UpdateUserDto } from './dto/create-user.dto';
 import { QueryUserDto } from './dto/query-user.dto';
 import { User, UserRole } from './entities/user.entity';
 
 type BuyerInput = Omit<CreateUserDto, 'role'>;
+type PendingInput = Pick<CreateUserDto, 'openingPendingAmount' | 'pendingAmount' | 'due'>;
 
 @Injectable()
 export class UsersService {
@@ -20,8 +21,13 @@ export class UsersService {
   ) {}
 
   sanitizeUser(user: User): User {
-    const sanitized = { ...user } as Partial<User>;
+    const sanitized = { ...user } as Partial<User> & { due?: number };
     delete sanitized.password;
+    const openingPending = Number(sanitized.openingPendingAmount ?? 0);
+    const pending = Number(sanitized.pendingAmount ?? openingPending);
+    sanitized.openingPendingAmount = openingPending;
+    sanitized.pendingAmount = pending;
+    sanitized.due = pending;
     return sanitized as User;
   }
 
@@ -38,6 +44,7 @@ export class UsersService {
 
   async create(createUserDto: CreateUserDto): Promise<User> {
     await this.assertMobileUnique(createUserDto.mobile);
+    const pending = this.normalizeCreatePendingAmounts(createUserDto);
 
     const hashedPassword = await bcrypt.hash(createUserDto.password, 10);
     const user = this.usersRepository.create({
@@ -45,6 +52,8 @@ export class UsersService {
       password: hashedPassword,
       role: createUserDto.role ?? UserRole.SELLER,
       isActive: createUserDto.isActive ?? true,
+      openingPendingAmount: pending.openingPendingAmount,
+      pendingAmount: pending.pendingAmount,
     });
 
     const saved = await this.usersRepository.save(user);
@@ -71,13 +80,30 @@ export class UsersService {
   }
 
   async findAll(query?: QueryUserDto): Promise<User[]> {
-    const where: FindOptionsWhere<User> = {};
-    if (query?.role) {
-      where.role = query.role;
+    const role = query?.role;
+    const searchTerm = (query?.search ?? query?.q ?? '').trim();
+    const hasSearch = searchTerm.length > 0;
+
+    let where: FindOptionsWhere<User> | FindOptionsWhere<User>[] | undefined;
+
+    if (hasSearch) {
+      const searchLike = ILike(`%${searchTerm}%`);
+      const baseWhere: Partial<FindOptionsWhere<User>> = {};
+      if (role) {
+        baseWhere.role = role;
+      }
+
+      where = [
+        { ...baseWhere, name: searchLike } as FindOptionsWhere<User>,
+        { ...baseWhere, mobile: searchLike } as FindOptionsWhere<User>,
+        { ...baseWhere, email: searchLike } as FindOptionsWhere<User>,
+      ];
+    } else if (role) {
+      where = { role };
     }
 
     const users = await this.usersRepository.find({
-      where: Object.keys(where).length > 0 ? where : undefined,
+      where,
       order: { createdAt: 'DESC' },
     });
     return this.sanitizeUsers(users);
@@ -90,7 +116,21 @@ export class UsersService {
       await this.assertMobileUnique(updateUserDto.mobile, id);
     }
 
-    Object.assign(user, updateUserDto);
+    const { openingPendingAmount, pendingAmount, due, ...rest } = updateUserDto;
+    Object.assign(user, rest);
+
+    const pendingPatch = this.normalizeUpdatePendingAmounts({
+      openingPendingAmount,
+      pendingAmount,
+      due,
+    });
+    if (pendingPatch.openingPendingAmount !== undefined) {
+      user.openingPendingAmount = pendingPatch.openingPendingAmount;
+    }
+    if (pendingPatch.pendingAmount !== undefined) {
+      user.pendingAmount = pendingPatch.pendingAmount;
+    }
+
     const updated = await this.usersRepository.save(user);
     return this.sanitizeUser(updated);
   }
@@ -140,5 +180,71 @@ export class UsersService {
   async toggleBuyerActive(id: string): Promise<User> {
     await this.findBuyerById(id);
     return this.toggleActive(id);
+  }
+
+  async findSellerById(id: string): Promise<User> {
+    const seller = await this.usersRepository.findOne({
+      where: { id, role: UserRole.SELLER },
+    });
+
+    if (!seller) {
+      throw new NotFoundException('Seller not found');
+    }
+
+    return this.sanitizeUser(seller);
+  }
+
+  async deleteSeller(id: string): Promise<void> {
+    await this.findSellerById(id);
+    await this.delete(id);
+  }
+
+  private normalizeCreatePendingAmounts(input: PendingInput): {
+    openingPendingAmount: number;
+    pendingAmount: number;
+  } {
+    const openingPendingAmount = Number(
+      this.firstDefined(input.openingPendingAmount, input.pendingAmount, input.due, 0),
+    );
+    const pendingAmount = Number(
+      this.firstDefined(input.pendingAmount, input.due, input.openingPendingAmount, openingPendingAmount),
+    );
+    return {
+      openingPendingAmount,
+      pendingAmount,
+    };
+  }
+
+  private normalizeUpdatePendingAmounts(input: PendingInput): {
+    openingPendingAmount?: number;
+    pendingAmount?: number;
+  } {
+    const hasOpening = input.openingPendingAmount !== undefined;
+    const hasPending = input.pendingAmount !== undefined || input.due !== undefined;
+
+    if (!hasOpening && !hasPending) {
+      return {};
+    }
+
+    const patch: { openingPendingAmount?: number; pendingAmount?: number } = {};
+    if (hasOpening) {
+      patch.openingPendingAmount = Number(input.openingPendingAmount);
+    }
+    if (hasPending) {
+      patch.pendingAmount = Number(this.firstDefined(input.pendingAmount, input.due));
+    } else if (hasOpening) {
+      patch.pendingAmount = Number(input.openingPendingAmount);
+    }
+
+    return patch;
+  }
+
+  private firstDefined<T>(...values: Array<T | undefined>): T | undefined {
+    for (const value of values) {
+      if (value !== undefined) {
+        return value;
+      }
+    }
+    return undefined;
   }
 }

@@ -1,6 +1,7 @@
 import { ConfigService } from '@nestjs/config';
 import { TypeOrmModuleOptions } from '@nestjs/typeorm';
 import { DataSource, DataSourceOptions } from 'typeorm';
+import { MilkRate } from '../modules/milk-rates/entities/milk-rate.entity';
 import { MilkSupply } from '../modules/milk-supply/entities/milk-supply.entity';
 import { MilkTransaction } from '../modules/milk-transactions/entities/milk-transaction.entity';
 import { User } from '../modules/users/entities/user.entity';
@@ -32,7 +33,7 @@ export const getTypeOrmConfig = (configService?: ConfigService): TypeOrmModuleOp
     username,
     password,
     database,
-    entities: [User, MilkTransaction, MilkSupply],
+    entities: [User, MilkTransaction, MilkSupply, MilkRate],
     migrations: ['src/database/migrations/*.ts', 'dist/database/migrations/*.js'],
     synchronize: nodeEnv !== 'production',
     logging: nodeEnv === 'development',

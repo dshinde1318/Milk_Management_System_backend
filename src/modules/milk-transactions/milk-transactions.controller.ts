@@ -1,6 +1,7 @@
 import {
   Controller,
   Post,
+  ForbiddenException,
   Body,
   Get,
   Param,
@@ -12,8 +13,17 @@ import {
 } from '@nestjs/common';
 import { MilkTransactionsService } from './milk-transactions.service';
 import { CreateMilkTransactionDto, UpdateMilkTransactionDto, QueryMilkTransactionDto } from './dto/create-milk-transaction.dto';
+import { QueryBuyerBillingDto } from './dto/query-buyer-billing.dto';
 import { MilkTransaction, TransactionStatus } from './entities/milk-transaction.entity';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { UserRole } from '../users/entities/user.entity';
+
+interface AuthenticatedRequest {
+  user: {
+    userId: string;
+    role: UserRole;
+  };
+}
 
 @Controller('milk-transactions')
 @UseGuards(JwtAuthGuard)
@@ -22,9 +32,12 @@ export class MilkTransactionsController {
 
   @Post()
   async create(
-    @Request() req: any,
+    @Request() req: AuthenticatedRequest,
     @Body() createDto: CreateMilkTransactionDto,
   ): Promise<MilkTransaction> {
+    if (req.user.role === UserRole.BUYER) {
+      throw new ForbiddenException('Buyers are not allowed to record milk transactions');
+    }
     return await this.transactionsService.create(req.user.userId, createDto);
   }
 
@@ -84,6 +97,18 @@ export class MilkTransactionsController {
       new Date(startDate),
       new Date(endDate),
     );
+  }
+
+  @Get('buyer/:buyerId/billing')
+  async getBuyerBilling(
+    @Request() req: AuthenticatedRequest,
+    @Param('buyerId') buyerId: string,
+    @Query() query: QueryBuyerBillingDto,
+  ) {
+    if (req.user.role !== UserRole.ADMIN) {
+      throw new ForbiddenException('Only admin can access buyer billing');
+    }
+    return await this.transactionsService.getBuyerBilling(buyerId, query);
   }
 
   @Get(':id')

@@ -4,9 +4,12 @@ import {
   IsOptional,
   IsEnum,
   IsBoolean,
+  IsNumber,
   MinLength,
+  Min,
   MaxLength,
 } from 'class-validator';
+import { Type } from 'class-transformer';
 import { UserRole } from '../entities/user.entity';
 
 export class CreateUserDto {
@@ -43,6 +46,24 @@ export class CreateUserDto {
   @IsString()
   @IsOptional()
   profileImage?: string;
+
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  @IsOptional()
+  openingPendingAmount?: number;
+
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  @IsOptional()
+  pendingAmount?: number;
+
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  @IsOptional()
+  due?: number;
 }
 
 export class UpdateUserDto {
@@ -69,4 +90,22 @@ export class UpdateUserDto {
   @IsString()
   @IsOptional()
   profileImage?: string;
+
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  @IsOptional()
+  openingPendingAmount?: number;
+
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  @IsOptional()
+  pendingAmount?: number;
+
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  @IsOptional()
+  due?: number;
 }

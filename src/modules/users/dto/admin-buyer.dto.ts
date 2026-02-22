@@ -2,8 +2,10 @@ import { Transform } from 'class-transformer';
 import {
   IsBoolean,
   IsEmail,
+  IsNumber,
   IsOptional,
   IsString,
+  Min,
   MaxLength,
   MinLength,
 } from 'class-validator';
@@ -30,6 +32,14 @@ const toBoolean = ({ value }: { value: unknown }) => {
     return false;
   }
   return value;
+};
+
+const toNumber = ({ value }: { value: unknown }) => {
+  if (value === undefined || value === null || value === '') {
+    return undefined;
+  }
+  const parsed = Number(value);
+  return Number.isNaN(parsed) ? value : parsed;
 };
 
 export class CreateAdminBuyerDto {
@@ -76,6 +86,24 @@ export class CreateAdminBuyerDto {
   @IsBoolean()
   @IsOptional()
   isActive?: boolean;
+
+  @Transform(toNumber)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  @IsOptional()
+  openingPendingAmount?: number;
+
+  @Transform(toNumber)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  @IsOptional()
+  pendingAmount?: number;
+
+  @Transform(toNumber)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  @IsOptional()
+  due?: number;
 
   @Transform(emptyStringToUndefined)
   @IsString()

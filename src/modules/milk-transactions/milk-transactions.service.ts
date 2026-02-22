@@ -1,8 +1,15 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Between } from 'typeorm';
-import { MilkTransaction, TransactionStatus } from './entities/milk-transaction.entity';
+import {
+  DeliverySession,
+  MilkTransaction,
+  MilkType,
+  TransactionStatus,
+} from './entities/milk-transaction.entity';
 import { CreateMilkTransactionDto, UpdateMilkTransactionDto, QueryMilkTransactionDto } from './dto/create-milk-transaction.dto';
+import { QueryBuyerBillingDto } from './dto/query-buyer-billing.dto';
+import { MilkRatesService } from '../milk-rates/milk-rates.service';
 import { NotificationsService } from '../notifications/notifications.service';
 
 @Injectable()
@@ -10,27 +17,47 @@ export class MilkTransactionsService {
   constructor(
     @InjectRepository(MilkTransaction)
     private readonly transactionsRepository: Repository<MilkTransaction>,
+    private readonly milkRatesService: MilkRatesService,
     private readonly notificationsService: NotificationsService,
   ) {}
 
   async create(sellerId: string, createDto: CreateMilkTransactionDto): Promise<MilkTransaction> {
+    const status = createDto.status || TransactionStatus.DELIVERED;
+    const deliverySession = createDto.deliverySession || createDto.shift || DeliverySession.MORNING;
+    const milkType = createDto.milkType || MilkType.COW;
+    const transactionDate = new Date(createDto.date);
+    const quantity =
+      status === TransactionStatus.DELIVERED
+        ? (createDto.quantity as number)
+        : 0;
+    const { pricePerUnit, totalAmount } = await this.resolvePricingSnapshot(
+      status,
+      milkType,
+      deliverySession,
+      transactionDate,
+      quantity,
+    );
+
     const transactionData = {
       sellerId,
       buyerId: createDto.buyerId,
-      date: new Date(createDto.date),
-      quantity: createDto.quantity,
+      date: transactionDate,
+      quantity,
       unit: createDto.unit || 'L',
-      status: createDto.status || TransactionStatus.DELIVERED,
+      status,
+      deliverySession,
+      milkType,
       remarks: createDto.remarks,
-      pricePerUnit: createDto.pricePerUnit,
-      totalAmount: createDto.pricePerUnit ? createDto.quantity * createDto.pricePerUnit : undefined,
+      pricePerUnit,
+      totalAmount,
     };
     
     const transaction = this.transactionsRepository.create(transactionData);
     const saved = await this.transactionsRepository.save(transaction);
 
-    // Send notification
-    await this.notificationsService.notifyDelivery(sellerId, createDto.buyerId, createDto.quantity);
+    if (status === TransactionStatus.DELIVERED && quantity > 0) {
+      await this.notificationsService.notifyDelivery(sellerId, createDto.buyerId, quantity);
+    }
 
     return saved;
   }
@@ -76,7 +103,40 @@ export class MilkTransactionsService {
   async update(id: string, updateDto: UpdateMilkTransactionDto): Promise<MilkTransaction> {
     const transaction = await this.findById(id);
 
-    Object.assign(transaction, updateDto);
+    const { shift, deliverySession, ...rest } = updateDto;
+    Object.assign(transaction, rest);
+
+    if (deliverySession || shift) {
+      transaction.deliverySession = deliverySession || shift!;
+    }
+
+    if (transaction.status !== TransactionStatus.DELIVERED) {
+      transaction.quantity = 0;
+      transaction.pricePerUnit = 0;
+      transaction.totalAmount = 0;
+      return await this.transactionsRepository.save(transaction);
+    }
+
+    const quantity = Number(transaction.quantity ?? 0);
+    if (!(quantity > 0)) {
+      throw new BadRequestException('Quantity must be greater than 0 for delivered entries');
+    }
+
+    const shouldResolveRate =
+      Number(transaction.pricePerUnit ?? 0) <= 0 ||
+      updateDto.milkType !== undefined ||
+      updateDto.deliverySession !== undefined ||
+      updateDto.shift !== undefined ||
+      updateDto.status !== undefined;
+
+    if (shouldResolveRate) {
+      transaction.pricePerUnit = await this.milkRatesService.resolveRate(
+        transaction.milkType,
+        transaction.deliverySession,
+        transaction.date,
+      );
+    }
+    transaction.totalAmount = quantity * Number(transaction.pricePerUnit ?? 0);
 
     return await this.transactionsRepository.save(transaction);
   }
@@ -200,5 +260,101 @@ export class MilkTransactionsService {
       totalAmount,
       transactions,
     };
+  }
+
+  async getBuyerBilling(buyerId: string, query: QueryBuyerBillingDto) {
+    const { startDate, endDate, month } = this.resolveBillingPeriod(query);
+    const transactions = await this.transactionsRepository.find({
+      where: {
+        buyerId,
+        status: TransactionStatus.DELIVERED,
+        date: Between(startDate, endDate),
+      },
+      order: { date: 'DESC' },
+    });
+
+    const totalQuantity = transactions.reduce(
+      (sum, item) => sum + Number(item.quantity ?? 0),
+      0,
+    );
+    const totalAmount = transactions.reduce(
+      (sum, item) => sum + Number(item.totalAmount ?? 0),
+      0,
+    );
+
+    return {
+      buyerId,
+      month,
+      periodStart: this.toDateOnly(startDate),
+      periodEnd: this.toDateOnly(endDate),
+      totalDeliveredEntries: transactions.length,
+      totalQuantity,
+      totalAmount,
+      paymentsApplied: 0,
+      netPayable: totalAmount,
+      transactions,
+    };
+  }
+
+  private async resolvePricingSnapshot(
+    status: TransactionStatus,
+    milkType: MilkType,
+    deliverySession: DeliverySession,
+    transactionDate: Date,
+    quantity: number,
+  ): Promise<{ pricePerUnit: number; totalAmount: number }> {
+    if (status !== TransactionStatus.DELIVERED) {
+      return { pricePerUnit: 0, totalAmount: 0 };
+    }
+    const resolvedRate = await this.milkRatesService.resolveRate(
+      milkType,
+      deliverySession,
+      transactionDate,
+    );
+    return {
+      pricePerUnit: resolvedRate,
+      totalAmount: quantity * resolvedRate,
+    };
+  }
+
+  private resolveBillingPeriod(query: QueryBuyerBillingDto): {
+    startDate: Date;
+    endDate: Date;
+    month: string;
+  } {
+    if (query.month) {
+      const [yearRaw, monthRaw] = query.month.split('-');
+      const year = Number(yearRaw);
+      const month = Number(monthRaw);
+      const startDate = new Date(Date.UTC(year, month - 1, 1));
+      const endDate = new Date(Date.UTC(year, month, 0));
+      return { startDate, endDate, month: query.month };
+    }
+
+    if (query.startDate || query.endDate) {
+      if (!query.startDate || !query.endDate) {
+        throw new BadRequestException('Both startDate and endDate are required when month is not provided');
+      }
+      const startDate = new Date(query.startDate);
+      const endDate = new Date(query.endDate);
+      return {
+        startDate,
+        endDate,
+        month: `${startDate.getUTCFullYear()}-${String(startDate.getUTCMonth() + 1).padStart(2, '0')}`,
+      };
+    }
+
+    const now = new Date();
+    const startDate = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+    const endDate = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0));
+    return {
+      startDate,
+      endDate,
+      month: `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}`,
+    };
+  }
+
+  private toDateOnly(value: Date): string {
+    return value.toISOString().slice(0, 10);
   }
 }

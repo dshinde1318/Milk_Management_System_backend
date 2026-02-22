@@ -42,6 +42,11 @@ export class CreateMilkSupplyDto {
   @IsOptional()
   deliverySession?: DeliverySession;
 
+  // Backward-compatible alias accepted from older payloads.
+  @IsEnum(DeliverySession)
+  @IsOptional()
+  shift?: DeliverySession;
+
   @IsEnum(MilkType)
   @IsOptional()
   milkType?: MilkType;

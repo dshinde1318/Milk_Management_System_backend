@@ -43,6 +43,12 @@ export class User {
   @Column({ type: 'varchar', length: 255, nullable: true })
   profileImage!: string;
 
+  @Column({ type: 'decimal', precision: 10, scale: 2, default: 0 })
+  openingPendingAmount!: number;
+
+  @Column({ type: 'decimal', precision: 10, scale: 2, default: 0 })
+  pendingAmount!: number;
+
   @CreateDateColumn()
   createdAt!: Date;
 
