@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import twilio from 'twilio';
+import twilio = require('twilio');
 
 @Injectable()
 export class NotificationsService {
