@@ -14,29 +14,41 @@ const toNumber = (value: string | undefined, fallback: number): number => {
   return Number.isNaN(parsed) ? fallback : parsed;
 };
 
-export const getTypeOrmConfig = (configService?: ConfigService): TypeOrmModuleOptions => {
-  const host = configService?.get<string>('DATABASE_HOST') ?? process.env.DATABASE_HOST ?? 'localhost';
-  const port = toNumber(
-    configService?.get<string>('DATABASE_PORT') ?? process.env.DATABASE_PORT,
-    5432,
-  );
-  const username = configService?.get<string>('DATABASE_USER') ?? process.env.DATABASE_USER ?? 'postgres';
-  const password =
-    configService?.get<string>('DATABASE_PASSWORD') ?? process.env.DATABASE_PASSWORD ?? 'milk_password';
-  const database = configService?.get<string>('DATABASE_NAME') ?? process.env.DATABASE_NAME ?? 'milk_db';
-  const nodeEnv = configService?.get<string>('NODE_ENV') ?? process.env.NODE_ENV ?? 'development';
+export const getTypeOrmConfig = (
+  configService?: ConfigService,
+): TypeOrmModuleOptions => {
+  const databaseUrl =
+    configService?.get<string>('DATABASE_URL') ??
+    process.env.DATABASE_URL;
 
+  const nodeEnv =
+    configService?.get<string>('NODE_ENV') ??
+    process.env.NODE_ENV ??
+    'development';
+
+  if (databaseUrl) {
+    return {
+      type: 'postgres',
+      url: databaseUrl,
+      entities: [User, MilkTransaction, MilkSupply, MilkRate],
+      migrations: ['dist/database/migrations/*.js'],
+      synchronize: false,
+      ssl: {
+        rejectUnauthorized: false,
+      },
+    };
+  }
+
+  // fallback for local development
   return {
     type: 'postgres',
-    host,
-    port,
-    username,
-    password,
-    database,
+    host: process.env.DATABASE_HOST ?? 'localhost',
+    port: Number(process.env.DATABASE_PORT) || 5432,
+    username: process.env.DATABASE_USER ?? 'postgres',
+    password: process.env.DATABASE_PASSWORD ?? 'milk_password',
+    database: process.env.DATABASE_NAME ?? 'milk_db',
     entities: [User, MilkTransaction, MilkSupply, MilkRate],
-    migrations: ['src/database/migrations/*.ts', 'dist/database/migrations/*.js'],
     synchronize: nodeEnv !== 'production',
-    logging: nodeEnv === 'development',
   };
 };
 
