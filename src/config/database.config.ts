@@ -15,24 +15,35 @@ const toNumber = (value: string | undefined, fallback: number): number => {
 };
 
 export const getTypeOrmConfig = (configService?: ConfigService): TypeOrmModuleOptions => {
+  const databaseUrl = configService?.get<string>('DATABASE_URL') ?? process.env.DATABASE_URL;
   const host = configService?.get<string>('DATABASE_HOST') ?? process.env.DATABASE_HOST ?? 'localhost';
   const port = toNumber(
     configService?.get<string>('DATABASE_PORT') ?? process.env.DATABASE_PORT,
-    5432,
+    5433,
   );
-  const username = configService?.get<string>('DATABASE_USER') ?? process.env.DATABASE_USER ?? 'postgres';
+  const username = configService?.get<string>('DATABASE_USER') ?? process.env.DATABASE_USER ?? 'milk_user';
   const password =
     configService?.get<string>('DATABASE_PASSWORD') ?? process.env.DATABASE_PASSWORD ?? 'milk_password';
   const database = configService?.get<string>('DATABASE_NAME') ?? process.env.DATABASE_NAME ?? 'milk_db';
   const nodeEnv = configService?.get<string>('NODE_ENV') ?? process.env.NODE_ENV ?? 'development';
+  const sslEnabled =
+    !!databaseUrl &&
+    (databaseUrl.includes('sslmode=require') || databaseUrl.includes('neon.tech'));
 
   return {
     type: 'postgres',
-    host,
-    port,
-    username,
-    password,
-    database,
+    ...(databaseUrl
+      ? {
+          url: databaseUrl,
+        }
+      : {
+          host,
+          port,
+          username,
+          password,
+          database,
+        }),
+    ssl: sslEnabled ? { rejectUnauthorized: false } : false,
     entities: [User, MilkTransaction, MilkSupply, MilkRate],
     migrations: ['src/database/migrations/*.ts', 'dist/database/migrations/*.js'],
     synchronize: nodeEnv !== 'production',

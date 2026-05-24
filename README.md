@@ -207,8 +207,8 @@ Create `.env` file with:
 ```env
 # Database
 DATABASE_HOST=localhost
-DATABASE_PORT=5432
-DATABASE_USER=
+DATABASE_PORT=5433
+DATABASE_USER=milk_user
 DATABASE_PASSWORD=milk_password
 DATABASE_NAME=milk_db
 
@@ -275,7 +275,7 @@ docker-compose up -d postgres
 # Access Adminer at http://localhost:8080
 # System: PostgreSQL
 # Server: postgres
-# Username: milk_db
+# Username: milk_user
 # Password: milk_password
 # Database: milk_db
 ```

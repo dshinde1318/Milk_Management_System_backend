@@ -16,7 +16,7 @@ Create a `.env` file in the project root:
 ```env
 # Database
 DATABASE_HOST=localhost
-DATABASE_PORT=5432
+DATABASE_PORT=5433
 DATABASE_USER=milk_user
 DATABASE_PASSWORD=milk_password
 DATABASE_NAME=milk_db
